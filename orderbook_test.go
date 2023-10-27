@@ -153,6 +153,81 @@ func TestLimitProcess(t *testing.T) {
 	t.Log(ob)
 }
 
+func TestWithSimpleDepth(t *testing.T) {
+	ob := NewOrderBook()
+
+	// person "A" sells his first order of 100 stock at a limit price of 100 per stock
+	totalStocks := decimal.New(100, 0)
+	pricePerStock := decimal.New(100, 0)
+	buyOrders, partialBuyOrder, partialyQty, err := ob.ProcessLimitOrder(Sell, "A-1", totalStocks, pricePerStock)
+	if err != nil {
+		t.Error(err)
+	}
+	// here we are using `buyOrders`, `partialBuyOrder` as the name of these variable is because when we sell the order buy orders which matched
+	// for "A"s sell order will be returned
+	// the above call to ProcessLimitOrder returns nil/zero values for all return values because there is no buy orders at market price or
+	// limit price matching "A"s sell order
+	if buyOrders != nil || len(buyOrders) > 0 {
+		t.Fatalf("buyOrders for A order should be non nil")
+	}
+	if partialBuyOrder != nil {
+		t.Fatalf("partialBuyOrder for A order should be nil")
+	}
+	if !partialyQty.Equal(decimal.Decimal{}) {
+		t.Fatalf("partialyQty for A order should be zero but its %v", partialyQty)
+	}
+
+	// person "B" sells another 50 stock at a limit price of 99 per stock
+	totalStocks = decimal.New(50, 0)
+	pricePerStock = decimal.New(99, 0)
+	buyOrders, partialBuyOrder, partialyQty, err = ob.ProcessLimitOrder(Sell, "B-1", totalStocks, pricePerStock)
+	// same checks as before
+	if buyOrders != nil || len(buyOrders) > 0 {
+		t.Fatalf("buyOrders for B order should be nil")
+	}
+	if partialBuyOrder != nil {
+		t.Fatalf("partialBuyOrder for B order should be nil")
+	}
+	if !partialyQty.Equal(decimal.Decimal{}) {
+		t.Fatalf("partialBuyOrder for B order should be nil")
+	}
+	// so as of now we have A selling 100 at 100
+	// and B selling 50 at 99
+
+	// now X buys 50 stocks at market price
+	totalStocks = decimal.New(50, 0)
+	sellOrdersFullyBought, sellOrderPartiallyBought, qtyPartialBought, qtyUnableToBuy, err := ob.ProcessMarketOrder(Buy, totalStocks)
+	// here sellOrdersFullyBought should be non nil
+	if sellOrdersFullyBought == nil {
+		t.Fatalf("sellOrdersFullyBought shouldnt be nil")
+	}
+	// and the sellOrdersFullyBought should have one sell order
+	if len(sellOrdersFullyBought) != 1 {
+		t.Fatalf("sellOrdersFullyBought should have one entry")
+	}
+	// that one entry should be the sell order from person "B" at price 99
+	// because 99 is the best market price
+	if sellOrdersFullyBought[0].id != "B-1" {
+		t.Fatalf("the only entry in the sellOrdersFullyBought should be with id B-1 but its %v", sellOrdersFullyBought[0].id)
+	}
+	if !sellOrdersFullyBought[0].price.Equal(decimal.New(99, 0)) {
+		t.Fatalf("the only entry in the sellOrdersFullyBought should be with price 99 but its %v", sellOrdersFullyBought[0].price)
+	}
+	// the second variable sellOrderPartiallyBought should be nil because there was a sell order with qty 50
+	// and our buy order of 50 matched, ie not resulted in partial buy
+	if sellOrderPartiallyBought != nil {
+		t.Fatalf("sellOrderPartiallyBought should be nil for buy from person X")
+	}
+	if !qtyPartialBought.Equal(decimal.Zero) {
+		t.Fatalf("qtyBought should be 50 but its %v", qtyPartialBought)
+	}
+
+	// we are able to buy everything in single order
+	if !qtyUnableToBuy.Equal(decimal.Zero) {
+		t.Fatalf("qtyUnableToBuy should be 0 but its %v", qtyUnableToBuy)
+	}
+}
+
 func TestMarketProcess(t *testing.T) {
 	ob := NewOrderBook()
 	addDepth(ob, "", decimal.New(2, 0))
@@ -161,7 +236,6 @@ func TestMarketProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if left.Sign() > 0 {
 		t.Fatal("Wrong quantity left")
 	}
