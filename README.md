@@ -9,7 +9,6 @@ Improved matching engine written in Go (Golang)
 [![Build Status](https://travis-ci.org/i25959341/orderbook.svg?branch=master)](https://travis-ci.org/i25959341/orderbook)
 
 ## Features
-
 - Standard price-time priority
 - Supports both market and limit orders
 - Supports order cancelling
@@ -17,6 +16,28 @@ Improved matching engine written in Go (Golang)
 - Optimal memory usage
 - JSON Marshalling and Unmarsalling
 - Calculating market price for definite quantity
+
+## importing it in your project
+```go
+import (
+	"github.com/ondbyte/orderbook"
+)
+
+func main(){
+	ob := orderbook.NewOrderBook()
+}
+```
+# EXAMPLE
+## how to run the example
+`cd <project root>`
+
+`cd example`
+
+run the program
+
+`go run .`
+
+program exits with `success` log
 
 ## Usage
 
@@ -26,7 +47,7 @@ user B putting a limit sell order of 50 stocks at price 90
 
 user X putting a market buy order of 50 stocks at market price
 
-program verifies certain scenerios 
+program verifies certain scenerios you should read the code to understand what is happening
 
 ```go
 package main
