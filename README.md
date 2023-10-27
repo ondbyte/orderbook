@@ -39,11 +39,11 @@ run the program
 
 program exits with `success` log
 
-## Usage
+### explaination
 
 example program where a order book begins with 
 user A putting a limit sell order of 100 stocks at price 100
-user B putting a limit sell order of 50 stocks at price 90
+user B putting a limit sell order of 50 stocks at price 99
 
 user X putting a market buy order of 50 stocks at market price
 
