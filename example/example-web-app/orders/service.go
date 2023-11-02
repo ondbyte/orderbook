@@ -2,6 +2,7 @@ package orders
 
 import (
 	"github.com/ondbyte/orderbook"
+	uuid "github.com/satori/go.uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -11,65 +12,74 @@ type Service struct {
 }
 
 func NewService() *Service {
-	return &Service{}
-}
-
-func (s *Service) PlaceOrder(order *OrderDetails) (*TransactionsDetails, error) {
-	// if the price is empty its market order
-	if order.Price.Equal(decimal.Decimal{}) {
-		return s.PlaceMarketOrder(order.Side, order.Quantity)
+	return &Service{
+		ob: orderbook.NewOrderBook(),
 	}
-	return s.
 }
 
-func (s *Service) PlaceMarketOrder(side orderbook.Side, qty decimal.Decimal) (*TransactionsDetails, error) {
+func (s *Service) PlaceMarketOrder(side orderbook.Side, qty decimal.Decimal) (*MarketOrderResponse, error) {
 	bought, partiallybought, partialQty, left, err := s.ob.ProcessMarketOrder(side, qty)
 	if err != nil {
 		return nil, err
 	}
-	txns := make([]*TransactionDetails, 0)
+	txns := make([]*ProcessedTransaction, 0)
 	for _, order := range bought {
-		txns = append(txns, &TransactionDetails{
+		txns = append(txns, &ProcessedTransaction{
 			Id:       order.ID(),
 			Quantity: order.Quantity(),
 			Price:    order.Price(),
 		})
 	}
-	return &TransactionsDetails{
-		Side:         side,
-		Quantity:     partialQty,
-		Left:         left,
-		Transactions: txns,
-		PartialTransaction: &TransactionDetails{
-			Id:       partiallybought.ID(),
-			Quantity: partiallybought.Quantity(),
-			Price:    partiallybought.Price(),
+	return &MarketOrderResponse{
+		Left: left,
+		OrderResponse: &OrderResponse{
+			Side:                  side,
+			ProcessedQuantity:     partialQty,
+			ProcessedTransactions: txns,
+			PartiallyProcessedTransaction: &ProcessedTransaction{
+				Id:       partiallybought.ID(),
+				Quantity: partiallybought.Quantity(),
+				Price:    partiallybought.Price(),
+			},
 		},
 	}, nil
 }
 
-func (s *Service) PlaceMarketOrder(side orderbook.Side, qty decimal.Decimal) (*TransactionsDetails, error) {
-	bought, partiallybought, partialQty, left, err := s.ob.ProcessMarketOrder(side, qty)
+func (s *Service) PlaceLimitOrder(side orderbook.Side, qty decimal.Decimal, price decimal.Decimal) (*LimitOrderResponse, error) {
+	id := uuid.NewV4().String()
+	bought, partiallybought, partialQty, err := s.ob.ProcessLimitOrder(side, id, qty, price)
 	if err != nil {
 		return nil, err
 	}
-	txns := make([]*TransactionDetails, 0)
+	txns := make([]*ProcessedTransaction, 0)
 	for _, order := range bought {
-		txns = append(txns, &TransactionDetails{
+		txns = append(txns, &ProcessedTransaction{
 			Id:       order.ID(),
 			Quantity: order.Quantity(),
 			Price:    order.Price(),
 		})
+
+		listener, ok := orderListeners[order.ID()]
+		if ok {
+			listener.WriteJSON(order)
+		}
 	}
-	return &TransactionsDetails{
-		Side:         side,
-		Quantity:     partialQty,
-		Left:         left,
-		Transactions: txns,
-		PartialTransaction: &TransactionDetails{
+	var partialTxn *ProcessedTransaction
+	if partiallybought != nil {
+		partialTxn = &ProcessedTransaction{
 			Id:       partiallybought.ID(),
 			Quantity: partiallybought.Quantity(),
 			Price:    partiallybought.Price(),
+		}
+	}
+	return &LimitOrderResponse{
+		Id: id,
+		OrderResponse: &OrderResponse{
+			Side:                          side,
+			RequestedQuantity:             qty,
+			ProcessedQuantity:             partialQty,
+			ProcessedTransactions:         txns,
+			PartiallyProcessedTransaction: partialTxn,
 		},
 	}, nil
 }
